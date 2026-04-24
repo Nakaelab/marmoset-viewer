@@ -8,6 +8,7 @@
         :root {
             --bg-color: #0a0a0a;
             --accent-color: #00f2ff;
+            --error-color: #ff4444;
             --text-color: #ffffff;
             --glass-bg: rgba(255, 255, 255, 0.05);
         }
@@ -96,19 +97,34 @@
         }
 
         .progress-bar {
-            width: 200px;
-            height: 2px;
+            width: 250px;
+            height: 4px;
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
+            border-radius: 4px;
             overflow: hidden;
+            margin-bottom: 10px;
         }
 
         #progress-fill {
             width: 0%;
             height: 100%;
             background: var(--accent-color);
-            transition: width 0.3s ease;
+            transition: width 0.1s ease;
             box-shadow: 0 0 10px var(--accent-color);
+        }
+
+        #error-message {
+            display: none;
+            color: var(--error-color);
+            margin-top: 20px;
+            text-align: center;
+            max-width: 80%;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            background: rgba(255, 68, 68, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 68, 68, 0.2);
         }
 
         .controls-hint {
@@ -126,17 +142,18 @@
 <body>
 
     <div id="loading-screen">
-        <span class="loader"></span>
+        <span class="loader" id="loader-icon"></span>
         <div class="progress-bar">
             <div id="progress-fill"></div>
         </div>
-        <p id="loading-text">Loading Assets...</p>
+        <p id="loading-text">Initializing Engine...</p>
+        <div id="error-message"></div>
     </div>
 
     <div id="ui-overlay">
         <div class="glass-panel">
             <h1>3D Showcase</h1>
-            <p>Marmoset Exported Model</p>
+            <p id="model-name">Loading model...</p>
         </div>
     </div>
 
@@ -150,107 +167,102 @@
         import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
         import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
         import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
-        import { RGBELoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/RGBELoader.js";
 
         const container = document.getElementById("viewer-container");
         const loadingScreen = document.getElementById("loading-screen");
         const progressFill = document.getElementById("progress-fill");
         const loadingText = document.getElementById("loading-text");
+        const errorMessage = document.getElementById("error-message");
+        const loaderIcon = document.getElementById("loader-icon");
+
+        function showError(msg) {
+            errorMessage.innerText = msg;
+            errorMessage.style.display = "block";
+            loaderIcon.style.display = "none";
+            loadingText.innerText = "Failed to load model";
+        }
+
+        // Check protocol
+        if (window.location.protocol === 'file:') {
+            showError("セキュリティ制限(CORS)により、ファイルを直接開くとモデルが読み込めません。'npx serve' 等のローカルサーバーを使用して開いてください。");
+        }
 
         // Scene Setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0a0a0a);
 
         // Camera Setup
-        const camera = new THREE.PerspectiveCamera(
-            45,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
-        camera.position.set(0, 1.5, 5);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 5, 15);
 
         // Renderer Setup
-        const renderer = new THREE.WebGLRenderer({ 
-            antialias: true,
-            alpha: true 
-        });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ReinhardToneMapping;
-        renderer.toneMappingExposure = 1.2;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         container.appendChild(renderer.domElement);
 
         // Controls
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.5;
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-
-        const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        mainLight.position.set(5, 10, 7.5);
-        mainLight.castShadow = true;
-        scene.add(mainLight);
-
-        // Loading Manager
-        const manager = new THREE.LoadingManager();
-        manager.onProgress = (url, itemsLoaded, itemsTotal) => {
-            const progress = (itemsLoaded / itemsTotal) * 100;
-            progressFill.style.width = progress + '%';
-        };
-
-        manager.onLoad = () => {
-            setTimeout(() => {
-                loadingScreen.style.opacity = '0';
-                setTimeout(() => {
-                    loadingScreen.style.display = 'none';
-                }, 800);
-            }, 500);
-        };
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight.position.set(5, 10, 7.5);
+        scene.add(dirLight);
 
         // Model Loader
-        const loader = new GLTFLoader(manager);
-        
-        // Correct path: the file is in the same directory
-        const modelPath = "./3dmarmoset_simplified.glb";
+        const loader = new GLTFLoader();
+        const modelPath = "3dmarmoset_simplified.glb";
 
         loader.load(
             modelPath,
             (gltf) => {
                 const model = gltf.scene;
                 
-                // Center the model
+                // Centering and Scaling
                 const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                model.position.sub(center);
-                
-                // Add to scene
-                scene.add(model);
-
-                // Adjust camera to fit model
                 const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                
+                model.position.x += (model.position.x - center.x);
+                model.position.y += (model.position.y - center.y);
+                model.position.z += (model.position.z - center.z);
+                
+                scene.add(model);
+                
+                // Adjust camera
                 const maxDim = Math.max(size.x, size.y, size.z);
                 camera.position.z = maxDim * 2.5;
-                controls.target.set(0, 0, 0);
-                controls.update();
+                camera.updateProjectionMatrix();
+                
+                document.getElementById("model-name").innerText = "3dmarmoset_simplified.glb";
+
+                // Fade out loading screen
+                setTimeout(() => {
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 800);
+                }, 500);
             },
             (xhr) => {
                 if (xhr.lengthComputable) {
-                    const percentComplete = (xhr.loaded / xhr.total) * 100;
-                    loadingText.innerText = `Loading: ${Math.round(percentComplete)}%`;
+                    const percent = (xhr.loaded / xhr.total) * 100;
+                    progressFill.style.width = percent + '%';
+                    loadingText.innerText = `Loading Assets: ${Math.round(percent)}% (${(xhr.loaded / 1048576).toFixed(1)}MB)`;
+                } else {
+                    // Fallback if size unknown
+                    loadingText.innerText = `Loading Assets: ${(xhr.loaded / 1048576).toFixed(1)}MB loaded...`;
                 }
             },
             (error) => {
-                console.error("Error loading model:", error);
-                loadingText.innerText = "Error loading 3D model. Check console.";
-                loadingText.style.color = "#ff4444";
+                console.error("Load Error:", error);
+                showError("モデルの読み込み中にエラーが発生しました。ファイル名が正しいか、サーバーが正常か確認してください。\nError: " + error.message);
             }
         );
 
