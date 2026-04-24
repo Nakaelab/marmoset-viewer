@@ -139,9 +139,18 @@
         const loader = new GLTFLoader();
         const modelFile = "3dmarmoset_simplified.glb";
 
+        // Check if running via file://
+        if (window.location.protocol === 'file:') {
+            logError("ローカルファイルとして実行されています。ブラウザのセキュリティ制限により、3Dモデルを読み込むことができません。ローカルサーバー（VSCodeのLive Server等）を使用してください。");
+        }
+
+        console.log("Starting to load model:", modelFile);
+        statusText.innerText = "Initializing connection...";
+
         loader.load(
             modelFile,
             (gltf) => {
+                console.log("Model loaded successfully");
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
@@ -163,8 +172,8 @@
                 }
             },
             (error) => {
-                console.error(error);
-                logError("Failed to load model file. Make sure the file exists in the same folder.");
+                console.error("Load error:", error);
+                logError("Failed to load model file. Error details: " + (error.message || "Possible CORS or file not found issue."));
             }
         );
 
