@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model Viewer | Marmoset Showcase</title>
+    <title>3D Model Viewer | Debug Mode</title>
     <style>
         :root {
             --bg-color: #0a0a0a;
@@ -24,46 +24,6 @@
             color: var(--text-color);
         }
 
-        #viewer-container {
-            width: 100%;
-            height: 100vh;
-            position: relative;
-        }
-
-        #ui-overlay {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
-            pointer-events: none;
-        }
-
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 1.2rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            font-weight: 300;
-            color: var(--accent-color);
-            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
-        }
-
-        p {
-            margin: 5px 0 0;
-            font-size: 0.8rem;
-            opacity: 0.6;
-        }
-
         #loading-screen {
             position: absolute;
             top: 0;
@@ -76,7 +36,6 @@
             justify-content: center;
             align-items: center;
             z-index: 100;
-            transition: opacity 0.8s ease;
         }
 
         .loader {
@@ -85,19 +44,14 @@
             border: 3px solid var(--accent-color);
             border-bottom-color: transparent;
             border-radius: 50%;
-            display: inline-block;
-            box-sizing: border-box;
             animation: rotation 1s linear infinite;
             margin-bottom: 20px;
         }
 
-        @keyframes rotation {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         .progress-bar {
-            width: 250px;
+            width: 280px;
             height: 4px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
@@ -109,178 +63,145 @@
             width: 0%;
             height: 100%;
             background: var(--accent-color);
-            transition: width 0.1s ease;
-            box-shadow: 0 0 10px var(--accent-color);
+            transition: width 0.2s ease;
         }
 
-        #error-message {
+        #status-text {
+            font-size: 0.9rem;
+            margin: 10px 0;
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+
+        #error-log {
             display: none;
             color: var(--error-color);
             margin-top: 20px;
-            text-align: center;
-            max-width: 80%;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            background: rgba(255, 68, 68, 0.1);
             padding: 15px;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
             border-radius: 8px;
-            border: 1px solid rgba(255, 68, 68, 0.2);
+            max-width: 80%;
+            font-family: monospace;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
 
-        .controls-hint {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.7rem;
-            opacity: 0.4;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
+        #viewer-container { width: 100%; height: 100vh; }
     </style>
 </head>
 <body>
 
     <div id="loading-screen">
-        <span class="loader" id="loader-icon"></span>
-        <div class="progress-bar">
-            <div id="progress-fill"></div>
-        </div>
-        <p id="loading-text">Initializing Engine...</p>
-        <div id="error-message"></div>
-    </div>
-
-    <div id="ui-overlay">
-        <div class="glass-panel">
-            <h1>3D Showcase</h1>
-            <p id="model-name">Loading model...</p>
-        </div>
+        <div class="loader" id="loader-icon"></div>
+        <div class="progress-bar"><div id="progress-fill"></div></div>
+        <div id="status-text">Checking System...</div>
+        <div id="error-log"></div>
     </div>
 
     <div id="viewer-container"></div>
 
-    <div class="controls-hint">
-        Left Click: Rotate | Right Click: Pan | Scroll: Zoom
-    </div>
+    <script>
+        // 非モジュールスクリプトでエラーをキャッチ
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            const log = document.getElementById('error-log');
+            log.style.display = 'block';
+            log.innerText += `\n[Error] ${msg} (Line: ${lineNo})`;
+            document.getElementById('status-text').innerText = "System Error Detected";
+            return false;
+        };
+    </script>
 
     <script type="module">
-        import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-        import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
-        import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+        const statusText = document.getElementById('status-text');
+        const progressFill = document.getElementById('progress-fill');
+        const errorLog = document.getElementById('error-log');
 
-        const container = document.getElementById("viewer-container");
-        const loadingScreen = document.getElementById("loading-screen");
-        const progressFill = document.getElementById("progress-fill");
-        const loadingText = document.getElementById("loading-text");
-        const errorMessage = document.getElementById("error-message");
-        const loaderIcon = document.getElementById("loader-icon");
-
-        function showError(msg) {
-            errorMessage.innerText = msg;
-            errorMessage.style.display = "block";
-            loaderIcon.style.display = "none";
-            loadingText.innerText = "Failed to load model";
+        function logError(msg) {
+            errorLog.style.display = 'block';
+            errorLog.innerText += `\n> ${msg}`;
         }
 
-        // Check protocol
-        if (window.location.protocol === 'file:') {
-            showError("セキュリティ制限(CORS)により、ファイルを直接開くとモデルが読み込めません。'npx serve' 等のローカルサーバーを使用して開いてください。");
-        }
+        try {
+            statusText.innerText = "Loading Three.js Engine...";
+            
+            import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+            import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+            import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 
-        // Scene Setup
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
+            statusText.innerText = "Engine Loaded. Searching for Model...";
 
-        // Camera Setup
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
-        camera.position.set(0, 5, 15);
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
 
-        // Renderer Setup
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.0;
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        container.appendChild(renderer.domElement);
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 5, 15);
 
-        // Controls
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-
-        // Lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-        dirLight.position.set(5, 10, 7.5);
-        scene.add(dirLight);
-
-        // Model Loader
-        const loader = new GLTFLoader();
-        const modelPath = "3dmarmoset_simplified.glb";
-
-        loader.load(
-            modelPath,
-            (gltf) => {
-                const model = gltf.scene;
-                
-                // Centering and Scaling
-                const box = new THREE.Box3().setFromObject(model);
-                const size = box.getSize(new THREE.Vector3());
-                const center = box.getCenter(new THREE.Vector3());
-                
-                model.position.x += (model.position.x - center.x);
-                model.position.y += (model.position.y - center.y);
-                model.position.z += (model.position.z - center.z);
-                
-                scene.add(model);
-                
-                // Adjust camera
-                const maxDim = Math.max(size.x, size.y, size.z);
-                camera.position.z = maxDim * 2.5;
-                camera.updateProjectionMatrix();
-                
-                document.getElementById("model-name").innerText = "3dmarmoset_simplified.glb";
-
-                // Fade out loading screen
-                setTimeout(() => {
-                    loadingScreen.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingScreen.style.display = 'none';
-                    }, 800);
-                }, 500);
-            },
-            (xhr) => {
-                if (xhr.lengthComputable) {
-                    const percent = (xhr.loaded / xhr.total) * 100;
-                    progressFill.style.width = percent + '%';
-                    loadingText.innerText = `Loading Assets: ${Math.round(percent)}% (${(xhr.loaded / 1048576).toFixed(1)}MB)`;
-                } else {
-                    // Fallback if size unknown
-                    loadingText.innerText = `Loading Assets: ${(xhr.loaded / 1048576).toFixed(1)}MB loaded...`;
-                }
-            },
-            (error) => {
-                console.error("Load Error:", error);
-                showError("モデルの読み込み中にエラーが発生しました。ファイル名が正しいか、サーバーが正常か確認してください。\nError: " + error.message);
-            }
-        );
-
-        // Resize handler
-        window.addEventListener("resize", () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('viewer-container').appendChild(renderer.domElement);
 
-        // Animation Loop
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+            dirLight.position.set(5, 10, 7.5);
+            scene.add(dirLight);
+
+            const loader = new GLTFLoader();
+            const modelFile = "3dmarmoset_simplified.glb";
+
+            statusText.innerText = `Requesting ${modelFile}...`;
+
+            loader.load(
+                modelFile,
+                (gltf) => {
+                    statusText.innerText = "Processing Model...";
+                    const model = gltf.scene;
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    scene.add(model);
+
+                    const size = box.getSize(new THREE.Vector3());
+                    camera.position.z = Math.max(size.x, size.y, size.z) * 2.5;
+                    
+                    document.getElementById('loading-screen').style.display = 'none';
+                },
+                (xhr) => {
+                    if (xhr.lengthComputable) {
+                        const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                        progressFill.style.width = percent + '%';
+                        statusText.innerText = `Downloading: ${percent}% (${(xhr.loaded / 1048576).toFixed(1)}MB / ${(xhr.total / 1048576).toFixed(1)}MB)`;
+                    } else {
+                        statusText.innerText = `Downloading: ${(xhr.loaded / 1048576).toFixed(1)}MB loaded...`;
+                    }
+                },
+                (error) => {
+                    logError(`Model Load Failed: ${error.message}`);
+                    statusText.innerText = "Error Loading Model File";
+                }
+            );
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.onresize = () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+
+        } catch (e) {
+            logError(`Critical Startup Error: ${e.message}`);
         }
-
-        animate();
     </script>
 </body>
 </html>
