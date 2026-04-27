@@ -157,6 +157,7 @@
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
+        controls.enablePan    = false;   // パン禁止 → target がずれない
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -180,42 +181,41 @@
         console.log("Starting to load model:", modelFile);
         statusText.innerText = "Initializing connection...";
 
+        // ピボットグループ（回転の軸）をシーン原点に固定
+        const pivot = new THREE.Object3D();
+        scene.add(pivot);
+
         loader.load(
             modelFile,
             (gltf) => {
                 console.log("Model loaded successfully");
                 const model = gltf.scene;
 
-                // ── 頭（モデル上端）を原点に合わせる ──────────────────
-                // まずスケール変換なしでバウンディングボックスを計算
-                const box = new THREE.Box3().setFromObject(model);
-                const size = box.getSize(new THREE.Vector3());
-                const topY  = box.max.y;   // モデルの最上部（頭のてっぺん）
-                const centerX = (box.min.x + box.max.x) / 2;
-                const centerZ = (box.min.z + box.max.z) / 2;
+                // ── バウンディングボックスの XYZ 完全中心を原点へ ──
+                const box    = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                const size   = box.getSize(new THREE.Vector3());
 
-                // X・Zは中心、Y は最上部が 0 になるよう移動
-                model.position.set(-centerX, -topY, -centerZ);
+                // モデルの中心が pivot 原点(0,0,0)に来るようオフセット
+                model.position.sub(center);
+                pivot.add(model);
 
                 let maxDim = Math.max(size.x, size.y, size.z);
                 if (!isFinite(maxDim) || maxDim === 0) maxDim = 10;
 
-                // OrbitControls のターゲットも原点（頭）に固定
-                controls.target.set(0, 0, 0);
-
-                // モデルが巨大すぎる場合、カメラの描画限界（far）を超えて真っ黒になるのを防ぐ
                 camera.far = Math.max(2000, maxDim * 10);
                 camera.updateProjectionMatrix();
 
-                // カメラを少し引いて全体が映るよう配置
+                // カメラ配置：モデル全体が映る距離
                 const distance = Math.max(maxDim * 2.5, 1.0);
-                camera.position.set(0, -maxDim * 0.3, distance);
+                camera.position.set(0, 0, distance);
 
+                // OrbitControls は体の中心(原点)を向く
+                controls.target.set(0, 0, 0);
                 controls.update();
-                scene.add(model);
 
-                // アニメーションループで参照できるようグローバルに保持
-                window._marmosetModel = model;
+                // アニメーションループから pivot を参照
+                window._marmosetPivot = pivot;
 
                 document.getElementById('loading-screen').style.display = 'none';
             },
@@ -237,11 +237,13 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // 頭を軸にくるくる回転（Y 軸・毎フレーム 0.8°）
-            if (window._marmosetModel) {
-                window._marmosetModel.rotation.y += 0.014;
+            // pivot(体の中心)を軸に Y 回転 → ズームしても軸は絶対にブレない
+            if (window._marmosetPivot) {
+                window._marmosetPivot.rotation.y += 0.014;
             }
 
+            // target を毎フレーム原点に強制固定（OrbitControls のドリフト防止）
+            controls.target.set(0, 0, 0);
             controls.update();
             renderer.render(scene, camera);
         }
