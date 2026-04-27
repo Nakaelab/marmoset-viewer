@@ -187,20 +187,24 @@
                 const model = gltf.scene;
                 scene.add(model);
 
-                // バウンディングボックスの計算（元の安全な方法に戻す）
+                // バウンディングボックスの計算
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
 
-                // もしサイズが異常な場合は安全なデフォルト値を使用
+                // モデル自体を原点(0,0,0)に移動（これが一番安定します）
+                model.position.sub(center);
+
                 let maxDim = Math.max(size.x, size.y, size.z);
                 if (!isFinite(maxDim) || maxDim === 0) maxDim = 10;
 
-                // カメラの回転軸（ターゲット）をモデルの中心にセット
-                controls.target.copy(center);
+                // 回転の軸を完全に原点(0,0,0)に固定
+                controls.target.set(0, 0, 0);
 
-                // カメラの位置を中心から手前に設定（1.5倍の距離）
-                camera.position.set(center.x, center.y, center.z + maxDim * 1.5);
+                // カメラの位置を調整（近すぎて見えなくなるのを防ぐため最低でも1.0離す）
+                // わずかに上（maxDim * 0.2）から見下ろすようにすると綺麗に収まります
+                const distance = Math.max(maxDim * 1.3, 1.0);
+                camera.position.set(0, maxDim * 0.2, distance);
                 
                 controls.update();
 
