@@ -185,31 +185,37 @@
             (gltf) => {
                 console.log("Model loaded successfully");
                 const model = gltf.scene;
-                scene.add(model);
 
-                // バウンディングボックスの計算
+                // ── 頭（モデル上端）を原点に合わせる ──────────────────
+                // まずスケール変換なしでバウンディングボックスを計算
                 const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
+                const topY  = box.max.y;   // モデルの最上部（頭のてっぺん）
+                const centerX = (box.min.x + box.max.x) / 2;
+                const centerZ = (box.min.z + box.max.z) / 2;
 
-                // モデル自体を原点(0,0,0)に移動（これが一番安定します）
-                model.position.sub(center);
+                // X・Zは中心、Y は最上部が 0 になるよう移動
+                model.position.set(-centerX, -topY, -centerZ);
 
                 let maxDim = Math.max(size.x, size.y, size.z);
                 if (!isFinite(maxDim) || maxDim === 0) maxDim = 10;
 
-                // 回転の軸を完全に原点(0,0,0)に固定
+                // OrbitControls のターゲットも原点（頭）に固定
                 controls.target.set(0, 0, 0);
 
                 // モデルが巨大すぎる場合、カメラの描画限界（far）を超えて真っ黒になるのを防ぐ
                 camera.far = Math.max(2000, maxDim * 10);
                 camera.updateProjectionMatrix();
 
-                // カメラの位置を元のサイズ感（2.5倍の距離）に戻し、高さも元に戻す
+                // カメラを少し引いて全体が映るよう配置
                 const distance = Math.max(maxDim * 2.5, 1.0);
-                camera.position.set(0, 5, distance);
-                
+                camera.position.set(0, -maxDim * 0.3, distance);
+
                 controls.update();
+                scene.add(model);
+
+                // アニメーションループで参照できるようグローバルに保持
+                window._marmosetModel = model;
 
                 document.getElementById('loading-screen').style.display = 'none';
             },
@@ -230,6 +236,12 @@
 
         function animate() {
             requestAnimationFrame(animate);
+
+            // 頭を軸にくるくる回転（Y 軸・毎フレーム 0.8°）
+            if (window._marmosetModel) {
+                window._marmosetModel.rotation.y += 0.014;
+            }
+
             controls.update();
             renderer.render(scene, camera);
         }
