@@ -142,7 +142,7 @@
         scene.background = new THREE.Color(0x0a0a0a);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
-        camera.position.set(0, 0, 15);
+        camera.position.set(0, 5, 15);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -203,14 +203,13 @@
                 let maxDim = Math.max(size.x, size.y, size.z);
                 if (!isFinite(maxDim) || maxDim === 0) maxDim = 10;
 
-                // near/far をモデルサイズに合わせて調整（画質が改善）
-                camera.near = maxDim * 0.001;
-                camera.far  = maxDim * 100;
+                // far をモデルサイズに合わせて拡張（消えるのを防ぐ）
+                camera.far = Math.max(2000, maxDim * 10);
                 camera.updateProjectionMatrix();
 
-                // カメラをモデル全体が映る距離に配置（少し上から見下ろす角度）
-                const distance = maxDim * 2.5;
-                camera.position.set(0, maxDim * 0.15, distance);
+                // カメラをモデル全体が映る距離に配置
+                const distance = Math.max(maxDim * 2.5, 1.0);
+                camera.position.set(0, 5, distance);
 
                 // OrbitControls のターゲットを体の中心（原点）に固定
                 controls.target.set(0, 0, 0);
