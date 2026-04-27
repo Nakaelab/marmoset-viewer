@@ -130,6 +130,7 @@
     <script type="module">
         import * as THREE from "three";
         import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
         const statusText = document.getElementById('status-text');
@@ -163,6 +164,12 @@
         scene.add(dirLight);
 
         const loader = new GLTFLoader();
+        
+        // Setup DRACOLoader for compressed models
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+        loader.setDRACOLoader(dracoLoader);
+
         const modelFile = "3dsimp_comp.glb";
 
         // Check if running via file://
