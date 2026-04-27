@@ -185,31 +185,23 @@
             (gltf) => {
                 console.log("Model loaded successfully");
                 const model = gltf.scene;
-                
-                // メッシュ（実際の3D形状）だけを計算に含めて正確な中心を出す（不要なライトなどを除外）
-                const box = new THREE.Box3();
-                box.makeEmpty();
-                model.traverse((child) => {
-                    if (child.isMesh) {
-                        box.expandByObject(child);
-                    }
-                });
+                scene.add(model);
 
+                // バウンディングボックスの計算（元の安全な方法に戻す）
+                const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
 
-                // モデルを原点(0,0,0)に移動させる
-                model.position.sub(center);
-                scene.add(model);
+                // もしサイズが異常な場合は安全なデフォルト値を使用
+                let maxDim = Math.max(size.x, size.y, size.z);
+                if (!isFinite(maxDim) || maxDim === 0) maxDim = 10;
 
-                // カメラの初期位置を再設定（モデル全体が見える位置）
-                const maxDim = Math.max(size.x, size.y, size.z);
+                // カメラの回転軸（ターゲット）をモデルの中心にセット
+                controls.target.copy(center);
+
+                // カメラの位置を中心から手前に設定（1.5倍の距離）
+                camera.position.set(center.x, center.y, center.z + maxDim * 1.5);
                 
-                // 正面に配置。近すぎると見えなくなるので near (0.1) 以上の距離を確保
-                camera.position.set(0, 0, Math.max(maxDim * 1.5, 0.5));
-                
-                // コントロールのターゲットを原点に
-                controls.target.set(0, 0, 0);
                 controls.update();
 
                 document.getElementById('loading-screen').style.display = 'none';
