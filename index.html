@@ -185,14 +185,21 @@
             (gltf) => {
                 console.log("Model loaded successfully");
                 const model = gltf.scene;
-                const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                model.position.sub(center);
                 scene.add(model);
 
+                // モデル自体の位置は動かさず、カメラと回転の「中心（ターゲット）」をモデルの中心に合わせる
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
-                // 数値を小さくすることでカメラが近づき、モデルが大きく表示されます（2.5 -> 1.3 に変更）
-                camera.position.z = Math.max(size.x, size.y, size.z) * 1.3;
+
+                // カメラの回転軸（注視点）をモデルの中心に設定
+                controls.target.copy(center);
+
+                // カメラの位置をモデルの中心から距離をとった位置に配置（1.3倍）
+                camera.position.set(center.x, center.y, center.z + Math.max(size.x, size.y, size.z) * 1.3);
+                
+                // コントロールを更新して適用
+                controls.update();
                 
                 document.getElementById('loading-screen').style.display = 'none';
             },
