@@ -4,21 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Model Viewer | Marmoset Showcase</title>
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
+    <meta name="description" content="マーモセットの3Dモデルビューアー。回転・ズーム操作に対応。">
+
+    <!-- model-viewer -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
     <style>
         :root {
             --bg-color: #0a0a0a;
             --accent-color: #00f2ff;
-            --error-color: #ff4444;
             --text-color: #ffffff;
         }
+
+        *, *::before, *::after { box-sizing: border-box; }
 
         body, html {
             margin: 0;
@@ -31,20 +29,35 @@
             color: var(--text-color);
         }
 
+        model-viewer {
+            width: 100%;
+            height: 100vh;
+            background: transparent;
+            --progress-bar-color: var(--accent-color);
+            --progress-mask: transparent;
+        }
+
+        /* カスタムローディングオーバーレイ */
         #loading-screen {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            position: fixed;
+            inset: 0;
             background: var(--bg-color);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 100;
+            transition: opacity 0.6s ease;
+        }
+
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
         }
 
         .loader {
-            width: 48px; height: 48px;
+            width: 48px;
+            height: 48px;
             border: 3px solid var(--accent-color);
             border-bottom-color: transparent;
             border-radius: 50%;
@@ -52,10 +65,14 @@
             margin-bottom: 20px;
         }
 
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes rotation {
+            0%   { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
 
         .progress-bar {
-            width: 280px; height: 4px;
+            width: 280px;
+            height: 4px;
             background: rgba(255,255,255,0.1);
             border-radius: 4px;
             overflow: hidden;
@@ -63,9 +80,11 @@
         }
 
         #progress-fill {
-            width: 0%; height: 100%;
+            width: 0%;
+            height: 100%;
             background: var(--accent-color);
             transition: width 0.2s ease;
+            box-shadow: 0 0 8px var(--accent-color);
         }
 
         #status-text {
@@ -73,179 +92,58 @@
             margin: 10px 0;
             opacity: 0.8;
         }
-
-        #error-log {
-            display: none;
-            color: var(--error-color);
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(255,68,68,0.1);
-            border: 1px solid rgba(255,68,68,0.3);
-            border-radius: 8px;
-            max-width: 80%;
-            font-family: monospace;
-            font-size: 0.8rem;
-            white-space: pre-wrap;
-        }
-
-        #viewer-container { width: 100%; height: 100vh; }
     </style>
 </head>
 <body>
 
+    <!-- ローディング画面 -->
     <div id="loading-screen">
         <div class="loader"></div>
         <div class="progress-bar"><div id="progress-fill"></div></div>
-        <div id="status-text">Loading Assets...</div>
-        <div id="error-log"></div>
+        <div id="status-text">Loading 3D Model...</div>
     </div>
 
-    <div id="viewer-container"></div>
+    <!-- model-viewer 本体 -->
+    <model-viewer
+        id="marmoset-viewer"
+        src="3dsimp_comp (1).glb"
+        camera-controls
+        auto-rotate
+        auto-rotate-delay="0"
+        rotation-per-second="30deg"
+        shadow-intensity="1"
+        exposure="1"
+        style="width: 100%; height: 100vh; background: transparent;">
+    </model-viewer>
 
     <script>
-        window.onerror = function(msg, source, lineno, colno) {
-            const el = document.getElementById('error-log');
-            if (el) {
-                el.style.display = 'block';
-                el.innerText += `\n[Global Error] ${msg} at ${source}:${lineno}:${colno}`;
-                document.getElementById('status-text').innerText = "Script Error";
-            }
-        };
-        window.onunhandledrejection = function(event) {
-            const el = document.getElementById('error-log');
-            if (el) {
-                el.style.display = 'block';
-                el.innerText += `\n[Unhandled Promise Rejection] ${event.reason}`;
-                document.getElementById('status-text').innerText = "Promise Error";
-            }
-        };
-    </script>
+        const viewer       = document.getElementById('marmoset-viewer');
+        const loadingScreen = document.getElementById('loading-screen');
+        const progressFill  = document.getElementById('progress-fill');
+        const statusText    = document.getElementById('status-text');
 
-    <script type="module">
-        import * as THREE from "three";
-        import { GLTFLoader }    from "three/addons/loaders/GLTFLoader.js";
-        import { DRACOLoader }   from "three/addons/loaders/DRACOLoader.js";
-        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        // 読み込み進捗
+        viewer.addEventListener('progress', (e) => {
+            const pct = Math.round(e.detail.totalProgress * 100);
+            progressFill.style.width = pct + '%';
+            statusText.innerText = `Downloading: ${pct}%`;
+        });
 
-        const statusText  = document.getElementById('status-text');
-        const progressFill = document.getElementById('progress-fill');
-        const errorLog    = document.getElementById('error-log');
+        // 読み込み完了
+        viewer.addEventListener('load', () => {
+            statusText.innerText = 'Complete!';
+            progressFill.style.width = '100%';
+            setTimeout(() => {
+                loadingScreen.classList.add('hidden');
+            }, 400);
+        });
 
-        function logError(msg) {
-            errorLog.style.display = 'block';
-            errorLog.innerText += `\n> ${msg}`;
-            statusText.innerText = "Error Detected";
-        }
-
-        // ── シーン ───────────────────────────────────────────────
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
-
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
-        camera.position.set(0, 5, 15);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        document.getElementById('viewer-container').appendChild(renderer.domElement);
-
-        // ── OrbitControls ─────────────────────────────────────────
-        // autoRotate = true にするとカメラが target(体の中心)を軸に回る
-        // モデル自体は一切動かないので軸ブレが起きない
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping   = true;
-        controls.dampingFactor   = 0.08;
-        controls.enablePan       = false;    // パン禁止 → target がずれない
-        controls.autoRotate      = true;     // ★ ターンテーブル回転
-        controls.autoRotateSpeed = 2.0;      // 速度（負で逆回転）
-        controls.target.set(0, 0, 0);
-
-        // ── ライト ────────────────────────────────────────────────
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-        dirLight.position.set(5, 10, 7.5);
-        scene.add(dirLight);
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        fillLight.position.set(-5, 0, -5);
-        scene.add(fillLight);
-
-        // ── ローダー ──────────────────────────────────────────────
-        const dracoLoader = new DRACOLoader();
-        dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
-
-        const loader = new GLTFLoader();
-        loader.setDRACOLoader(dracoLoader);
-
-        const modelFile = "3dsimp_comp (1).glb";
-
-        if (window.location.protocol === 'file:') {
-            logError("ローカルファイルとして実行されています。VSCode の Live Server などのローカルサーバーを使用してください。");
-        }
-
-        console.log("Loading model:", modelFile);
-        statusText.innerText = "Initializing connection...";
-
-        loader.load(
-            modelFile,
-            (gltf) => {
-                console.log("Model loaded successfully");
-                const model = gltf.scene;
-
-                // ── バウンディングボックスの XYZ 中心を origin(0,0,0) に合わせる ──
-                const box    = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                const size   = box.getSize(new THREE.Vector3());
-
-                // モデルを平行移動して中心を原点へ
-                model.position.sub(center);
-                scene.add(model);
-
-                let maxDim = Math.max(size.x, size.y, size.z);
-                if (!isFinite(maxDim) || maxDim === 0) maxDim = 10;
-
-                // far をモデルサイズに合わせて拡張（消えるのを防ぐ）
-                camera.far = Math.max(2000, maxDim * 10);
-                camera.updateProjectionMatrix();
-
-                // カメラをモデル全体が映る距離に配置
-                const distance = Math.max(maxDim * 2.5, 1.0);
-                camera.position.set(0, 5, distance);
-
-                // OrbitControls のターゲットを体の中心（原点）に固定
-                controls.target.set(0, 0, 0);
-                controls.update();
-
-                document.getElementById('loading-screen').style.display = 'none';
-            },
-            (xhr) => {
-                if (xhr.lengthComputable) {
-                    const pct = Math.round((xhr.loaded / xhr.total) * 100);
-                    progressFill.style.width = pct + '%';
-                    statusText.innerText = `Downloading: ${pct}% (${(xhr.loaded/1048576).toFixed(1)}MB / ${(xhr.total/1048576).toFixed(1)}MB)`;
-                } else {
-                    statusText.innerText = `Downloading: ${(xhr.loaded/1048576).toFixed(1)}MB...`;
-                }
-            },
-            (error) => {
-                console.error("Load error:", error);
-                logError("Failed to load model. " + (error.message || "CORS or file not found."));
-            }
-        );
-
-        // ── アニメーションループ ──────────────────────────────────
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();  // autoRotate + damping に必要
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // ── リサイズ対応 ──────────────────────────────────────────
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        // エラー
+        viewer.addEventListener('error', (e) => {
+            statusText.innerText = 'Error: ' + (e.detail?.type || 'Failed to load model');
+            statusText.style.color = '#ff4444';
         });
     </script>
+
 </body>
 </html>
