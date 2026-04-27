@@ -170,7 +170,7 @@
         dracoLoader.setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
         loader.setDRACOLoader(dracoLoader);
 
-        const modelFile = "3dsimp_comp.glb";
+        const modelFile = "3dsimp_comp (1).glb";
 
         // Check if running via file://
         if (window.location.protocol === 'file:') {
@@ -191,7 +191,8 @@
                 scene.add(model);
 
                 const size = box.getSize(new THREE.Vector3());
-                camera.position.z = Math.max(size.x, size.y, size.z) * 2.5;
+                // 数値を小さくすることでカメラが近づき、モデルが大きく表示されます（2.5 -> 1.3 に変更）
+                camera.position.z = Math.max(size.x, size.y, size.z) * 1.3;
                 
                 document.getElementById('loading-screen').style.display = 'none';
             },
